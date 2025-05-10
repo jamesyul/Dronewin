@@ -1,64 +1,60 @@
-import osmnx as ox
 import numpy as np
 import pandas as pd
 from shapely.geometry import box, Polygon, LineString
 import osmium as osm
-import tempfile
-import os
 
 class PBFHandler(osm.SimpleHandler):
-    def __init__(self):
+    def __init__(self, bbox):
         osm.SimpleHandler.__init__(self)
-        self.nodes = {}  # Diccionario para nodos: node_id -> (lon, lat)
-        self.obstacles = []  # Lista de obstáculos: (tipo, coordenadas)
+        self.nodes = {}  # node_id -> (lon, lat)
+        self.obstacles = []  # (tipo, coordenadas)
+        self.bbox = bbox  # (min_lon, min_lat, max_lon, max_lat)
 
     def node(self, n):
-        # Almacenar coordenadas de nodos
-        self.nodes[n.id] = (float(n.location.lon), float(n.location.lat))
+        lon, lat = float(n.location.lon), float(n.location.lat)
+        if self.bbox:
+            min_lon, min_lat, max_lon, max_lat = self.bbox
+            if not (min_lon <= lon <= max_lon and min_lat <= lat <= max_lat):
+                return
+        self.nodes[n.id] = (lon, lat)
 
     def way(self, w):
         tags = dict(w.tags)
-        coords = []
-        # Obtener coordenadas de los nodos del way
-        for node_ref in w.nodes:
-            if node_ref.ref in self.nodes:
-                coords.append(self.nodes[node_ref.ref])
-        
-        if not coords:
+        coords = [self.nodes[node_ref.ref] for node_ref in w.nodes if node_ref.ref in self.nodes]
+        if len(coords) < 2:
             return
 
-        # Identificar tipo de obstáculo según etiquetas
+        # Identificar tipo de obstáculo
+        obstacle_type = None
         if 'building' in tags:
-            # Edificios como polígonos
-            self.obstacles.append(('building', coords))
+            obstacle_type = 'building'
         elif 'waterway' in tags and tags['waterway'] in ['river', 'stream', 'canal']:
-            # Ríos como líneas
-            self.obstacles.append(('river', coords))
+            obstacle_type = 'river'
         elif 'highway' in tags and tags['highway'] in ['motorway', 'primary', 'secondary']:
-            # Carreteras principales como líneas (opcional: decidir si son obstáculos)
-            self.obstacles.append(('road', coords))
+            obstacle_type = 'road'
         elif 'landuse' in tags and tags['landuse'] == 'forest':
-            # Bosques como polígonos
-            self.obstacles.append(('forest', coords))
+            obstacle_type = 'forest'
         elif 'landuse' in tags and tags['landuse'] == 'industrial':
-            # Áreas industriales como polígonos
-            self.obstacles.append(('industrial', coords))
-        elif 'natural' in tags and tags['natural'] in ['wetland', 'hill']:
-            # Pantanos o colinas como polígonos
-            self.obstacles.append(('natural', coords))
+            obstacle_type = 'industrial'
+        elif 'landuse' in tags and tags['landuse'] == 'residential':
+            obstacle_type = 'residential'
+        elif 'natural' in tags and tags['natural'] in ['wetland', 'hill', 'ridge']:
+            obstacle_type = 'natural'
+
+        if obstacle_type:
+            self.obstacles.append((obstacle_type, coords))
 
     def relation(self, r):
         tags = dict(r.tags)
         if 'natural' in tags and tags['natural'] == 'water':
-            # Lagos como polígonos (simplificado)
             coords = []
             for member in r.members:
                 if member.type == 'n' and member.ref in self.nodes:
                     coords.append(self.nodes[member.ref])
-            if coords:
+            if len(coords) >= 2:
                 self.obstacles.append(('lake', coords))
 
-def convert_pbf_to_grid(pbf_path, csv_path, grid_size=100):
+def convert_pbf_to_grid(pbf_path, csv_path, grid_size=50):
     """
     Convierte un archivo PBF de OSM a una cuadrícula CSV con múltiples obstáculos.
 
@@ -68,41 +64,28 @@ def convert_pbf_to_grid(pbf_path, csv_path, grid_size=100):
     - grid_size: Tamaño de la cuadrícula.
     """
     try:
-        # Procesar el archivo PBF
-        handler = PBFHandler()
+        # Caja delimitadora para Kursk
+        kursk_bbox = (36.1, 51.65, 36.25, 51.75)
+        handler = PBFHandler(bbox=kursk_bbox)
         handler.apply_file(pbf_path)
 
-        if not handler.nodes:
-            raise ValueError("No se encontraron nodos en el archivo PBF")
-
-        print(f"Número de nodos encontrados: {len(handler.nodes)}")
-        print(f"Número de obstáculos encontrados: {len(handler.obstacles)}")
+        print(f"Nodos almacenados: {len(handler.nodes)}")
+        print(f"Obstáculos encontrados: {len(handler.obstacles)}")
         print("Tipos de obstáculos:", set(obstacle[0] for obstacle in handler.obstacles))
 
-        # Crear archivo temporal OSM XML para compatibilidad con osmnx
-        with tempfile.NamedTemporaryFile(suffix='.osm', delete=False) as tmp:
-            tmp_path = tmp.name
-            tmp.write(b'<?xml version="1.0" encoding="UTF-8"?>\n')
-            tmp.write(b'<osm version="0.6">\n')
-            for node_id, (lon, lat) in handler.nodes.items():
-                tmp.write(f'  <node id="{node_id}" lat="{lat}" lon="{lon}"/>\n'.encode())
-            tmp.write(b'</osm>')
+        if not handler.nodes or not handler.obstacles:
+            raise ValueError("No se encontraron nodos u obstáculos en el área especificada. Verifica el archivo PBF o la caja delimitadora.")
 
-        print(f"Archivo temporal creado: {tmp_path}")
-
-        # Cargar el grafo desde el archivo OSM temporal
-        G = ox.graph_from_xml(tmp_path, simplify=False)
-        os.unlink(tmp_path)
-
-        # Obtener los límites del mapa
-        gdf_nodes = ox.graph_to_gdfs(G, edges=False)
-        minx, miny, maxx, maxy = gdf_nodes.total_bounds
+        # Calcular límites basados en nodos
+        lons, lats = zip(*handler.nodes.values())
+        minx, maxx = min(lons), max(lons)
+        miny, maxy = min(lats), max(lats)
 
         print(f"Límites del mapa: minx={minx}, miny={miny}, maxx={maxx}, maxy={maxy}")
 
-        # Verificar límites válidos
+        # Ajustar límites si son idénticos
         if minx == maxx or miny == maxy:
-            margin = 0.0001  # ~11 metros
+            margin = 0.001  # ~100 metros
             minx -= margin
             maxx += margin
             miny -= margin
@@ -116,42 +99,68 @@ def convert_pbf_to_grid(pbf_path, csv_path, grid_size=100):
 
         print(f"Tamaño de celda: x_step={x_step}, y_step={y_step}")
 
-        # Función para marcar celdas dentro de un polígono o a lo largo de una línea
+        # Función para marcar obstáculos
         def mark_obstacle(coords, obstacle_type):
             try:
                 if len(coords) < 2:
                     return
-                if obstacle_type in ['building', 'forest', 'industrial', 'natural', 'lake']:
-                    # Tratar como polígono
-                    poly = Polygon(coords)
-                    if not poly.is_valid:
-                        return
-                    # Marcar todas las celdas dentro del polígono
-                    for gy in range(grid_size):
-                        for gx in range(grid_size):
-                            cell_x = minx + gx * x_step + x_step / 2
-                            cell_y = miny + gy * y_step + y_step / 2
-                            if poly.contains(box(cell_x, cell_y, cell_x + x_step, cell_y + y_step)):
-                                grid[gy, gx] = 1
-                elif obstacle_type in ['river', 'road']:
-                    # Tratar como línea
+
+                if obstacle_type in ['building', 'forest', 'industrial', 'residential', 'natural', 'lake']:
+                    if len(coords) >= 4 and coords[0] == coords[-1]:
+                        poly = Polygon(coords)
+                        if not poly.is_valid:
+                            return
+                        min_px, min_py, max_px, max_py = poly.bounds
+                        min_gx = max(0, int((min_px - minx) / x_step))
+                        min_gy = max(0, int((min_py - miny) / y_step))
+                        max_gx = min(grid_size, int((max_px - minx) / x_step) + 1)
+                        max_gy = min(grid_size, int((max_py - miny) / y_step) + 1)
+                        for gy in range(min_gy, max_gy):
+                            for gx in range(min_gx, max_gx):
+                                cell_x = minx + gx * x_step
+                                cell_y = miny + gy * y_step
+                                cell_box = box(cell_x, cell_y, cell_x + x_step, cell_y + y_step)
+                                if poly.intersects(cell_box):
+                                    grid[gy, gx] = 1
+                    else:
+                        line = LineString(coords)
+                        min_px, min_py, max_px, max_py = line.bounds
+                        min_gx = max(0, int((min_px - minx) / x_step))
+                        min_gy = max(0, int((min_py - miny) / y_step))
+                        max_gx = min(grid_size, int((max_px - minx) / x_step) + 1)
+                        max_gy = min(grid_size, int((max_py - miny) / y_step) + 1)
+                        for gy in range(min_gy, max_gy):
+                            for gx in range(min_gx, max_gx):
+                                cell_x = minx + gx * x_step
+                                cell_y = miny + gy * y_step
+                                cell_box = box(cell_x, cell_y, cell_x + x_step, cell_y + y_step)
+                                if line.intersects(cell_box):
+                                    grid[gy, gx] = 1
+                elif obstacle_type == 'river':
                     line = LineString(coords)
-                    # Marcar celdas cercanas a la línea
-                    for gy in range(grid_size):
-                        for gx in range(grid_size):
-                            cell_x = minx + gx * x_step + x_step / 2
-                            cell_y = miny + gy * y_step + y_step / 2
+                    min_px, min_py, max_px, max_py = line.bounds
+                    min_gx = max(0, int((min_px - minx) / x_step))
+                    min_gy = max(0, int((min_py - miny) / y_step))
+                    max_gx = min(grid_size, int((max_px - minx) / x_step) + 1)
+                    max_gy = min(grid_size, int((max_py - miny) / y_step) + 1)
+                    for gy in range(min_gy, max_gy):
+                        for gx in range(min_gx, max_gx):
+                            cell_x = minx + gx * x_step
+                            cell_y = miny + gy * y_step
                             cell_box = box(cell_x, cell_y, cell_x + x_step, cell_y + y_step)
                             if line.intersects(cell_box):
-                                grid[gy, gx] = 1 if obstacle_type == 'river' else 1  # Carreteras como obstáculos
+                                grid[gy, gx] = 1
+                elif obstacle_type == 'road':
+                    # Carreteras transitables
+                    pass
             except Exception as e:
                 print(f"Error al procesar obstáculo {obstacle_type}: {str(e)}")
 
-        # Marcar obstáculos en la cuadrícula
+        # Marcar obstáculos
         for obstacle_type, coords in handler.obstacles:
             mark_obstacle(coords, obstacle_type)
 
-        # Guardar la cuadrícula
+        # Guardar cuadrícula
         pd.DataFrame(grid).to_csv(csv_path, header=False, index=False)
         print(f"Mapa convertido y guardado en {csv_path}")
         print(f"Número de celdas marcadas como obstáculos: {np.sum(grid)}")
@@ -163,4 +172,4 @@ def convert_pbf_to_grid(pbf_path, csv_path, grid_size=100):
 if __name__ == "__main__":
     pbf_path = 'data/mapas/Mapa de Kursk.pbf'
     csv_path = 'data/mapas/mapa_inicial.csv'
-    convert_pbf_to_grid(pbf_path, csv_path)
+    convert_pbf_to_grid(pbf_path, csv_path, grid_size=50)
