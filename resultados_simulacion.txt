@@ -1,1 +1,1 @@
-Drone 1: Parado en (24, 23) (sin combustible o sin ruta), Combustible restante: 20
+Drone 1: Parado en (25, 0) (sin combustible o sin ruta), Combustible restante: 100

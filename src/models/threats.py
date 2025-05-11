@@ -23,16 +23,12 @@ class Threat:
             self.x, self.y = new_x, new_y
 
 def load_threats(file_path):
-    """Carga las amenazas desde un archivo CSV."""
     try:
         df = pd.read_csv(file_path)
-        # Verificar que el CSV tenga las columnas correctas
         required_columns = ['x', 'y', 'tipo', 'rango']
         if not all(col in df.columns for col in required_columns):
             raise ValueError("El archivo CSV debe contener las columnas: x, y, tipo, rango")
-        # Crear una lista de objetos Threat
         threats = [Threat(row['x'], row['y'], row['tipo'], row['rango']) for _, row in df.iterrows()]
-        # Validar que las posiciones estén dentro del mapa 50x50
         for threat in threats:
             if not (0 <= threat.x < 50 and 0 <= threat.y < 50):
                 raise ValueError(f"Posición de amenaza ({threat.x}, {threat.y}) fuera del mapa 50x50")
