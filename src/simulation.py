@@ -1,5 +1,5 @@
 import pandas as pd
-from utils.grid import load_map
+from utils.grid import load_map, is_transitable
 from utils.visualization import animate_simulation
 from models.drone import Drone
 from models.threats import load_threats
@@ -25,11 +25,12 @@ def get_user_drones(grid):
                 goal_y = int(input(f"Drone {i+1} - Coordenada Y objetivo (0-49): "))
                 fuel = int(input(f"Drone {i+1} - Combustible inicial: "))
 
-                # Validar posiciones
                 if not (0 <= start_x < 50 and 0 <= start_y < 50 and 0 <= goal_x < 50 and 0 <= goal_y < 50):
                     raise ValueError("Las coordenadas deben estar entre 0 y 49.")
-                if grid[start_y, start_x] != 0 or grid[goal_y, goal_x] != 0:
-                    raise ValueError("Las posiciones inicial y objetivo deben ser celdas transitables (0).")
+                if not is_transitable(grid, start_x, start_y):
+                    raise ValueError(f"La posición inicial ({start_x}, {start_y}) no es transitable.")
+                if not is_transitable(grid, goal_x, goal_y):
+                    raise ValueError(f"La posición objetivo ({goal_x}, {goal_y}) no es transitable.")
                 if fuel <= 0:
                     raise ValueError("El combustible debe ser positivo.")
 
@@ -43,15 +44,29 @@ def get_user_drones(grid):
 def run_simulation():
     # Cargar datos
     grid = load_map('data/mapas/mapa_inicial.csv')
-    threats = load_threats('data/amenazas/amenazas_iniciales.csv')
+    print(f"Mapa cargado: {grid.shape}")
     print(f"Valor en (0, 0): {grid[0, 0]}")
     print(f"Valor en (49, 49): {grid[49, 49]}")
-    
+
+    # Cargar amenazas con depuración
+    try:
+        threats = load_threats('data/amenazas/amenazas_iniciales.csv')
+        print(f"Total de amenazas cargadas: {len(threats)}")
+        for threat in threats:
+            print(f"Amenaza en ({threat.x}, {threat.y}), tipo: {threat.tipo}, rango: {threat.range}")
+    except Exception as e:
+        print(f"Error al cargar amenazas: {str(e)}")
+        return
+
     # Obtener drones desde la entrada del usuario
     drones = get_user_drones(grid)
 
     # Ejecutar animación
-    animate_simulation(grid, drones, threats, steps=50)
+    try:
+        animate_simulation(grid, drones, threats, steps=50)
+    except Exception as e:
+        print(f"Error en la animación: {str(e)}")
+        return
     
     # Guardar resultados
     with open('resultados_simulacion.txt', 'w') as f:
