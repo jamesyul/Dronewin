@@ -4,21 +4,20 @@ import numpy as np
 
 class Threat:
     def __init__(self, x, y, tipo, range):
-        """Inicializa una amenaza con posición, tipo y rango."""
-        self.x = int(x)  # Coordenada x (columna)
-        self.y = int(y)  # Coordenada y (fila)
-        self.tipo = tipo  # Tipo de amenaza (e.g., 'antiaerea', 'radar')
-        self.range = int(range)  # Rango de influencia
+        self.x = int(x)
+        self.y = int(y)
+        self.tipo = tipo
+        self.range = int(range)
 
-    def move(self, grid):
-        """Mueve la amenaza aleatoriamente dentro de los límites del grid."""
-        # Posibles desplazamientos: -1, 0, 1
+    def move(self, grid, drones):
         dx = random.choice([-1, 0, 1])
         dy = random.choice([-1, 0, 1])
-        # Calcular nueva posición asegurando que esté dentro del grid (50x50)
-        new_x = max(0, min(grid.shape[1] - 1, self.x + dx))  # shape[1] = 50
-        new_y = max(0, min(grid.shape[0] - 1, self.y + dy))  # shape[0] = 50
-        # Actualizar posición solo si la nueva celda es transitable (valor 0)
+        new_x = max(0, min(grid.shape[1] - 1, self.x + dx))
+        new_y = max(0, min(grid.shape[0] - 1, self.y + dy))
+        # Evitar superposición con drones
+        for drone in drones:
+            if (new_x, new_y) == drone.start:
+                return  # No mover si la nueva posición está ocupada por un dron
         if grid[new_y, new_x] == 0:
             self.x, self.y = new_x, new_y
 

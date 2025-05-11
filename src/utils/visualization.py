@@ -1,5 +1,5 @@
 import matplotlib
-matplotlib.use('TkAgg')  # Forzar backend TkAgg, que suele funcionar bien
+matplotlib.use('TkAgg')
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 import numpy as np
@@ -34,8 +34,9 @@ def animate_simulation(grid, drones, threats, steps=50):
         ax.legend()
         ax.grid(True)
         
-        for threat in threats:
-            threat.move(grid)
+        if frame % 5 == 0:  # Mover amenazas cada 5 frames (2.5 segundos)
+            for threat in threats:
+                threat.move(grid, drones)
         for drone in drones:
             if drone.fuel > 0 and drone.start != drone.goal:
                 from src.algorithms.pathfinding import a_star
