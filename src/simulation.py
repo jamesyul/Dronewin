@@ -1,34 +1,66 @@
-import time
-import matplotlib.pyplot as plt
+import pandas as pd
 from utils.grid import load_map
-from models.threats import load_threats
-from utils.visualization import plot_map
+from utils.visualization import animate_simulation
 from models.drone import Drone
-from algorithms.pathfinding import a_star
+from models.threats import load_threats
 
-# Cargar el mapa y las amenazas
-grid = load_map("data/mapas/mapa_inicial.csv")
-threats = load_threats("data/amenazas/amenazas_iniciales.csv")
+def get_user_drones(grid):
+    """Obtiene la información de los drones desde la entrada del usuario."""
+    while True:
+        try:
+            num_drones = int(input("Ingrese el número de drones: "))
+            if num_drones <= 0:
+                raise ValueError("El número de drones debe ser positivo.")
+            break
+        except ValueError as e:
+            print(f"Error: {e}. Intente de nuevo.")
 
-# Definir drones con posiciones dentro del mapa 50x50
-drones = [
-    Drone((0, 0), (49, 49), 150),  # Drone 1: de esquina a esquina
-    Drone((0, 49), (49, 0), 150)   # Drone 2: de otra esquina a esquina
-]
+    drones = []
+    for i in range(num_drones):
+        while True:
+            try:
+                start_x = int(input(f"Drone {i+1} - Coordenada X inicial (0-49): "))
+                start_y = int(input(f"Drone {i+1} - Coordenada Y inicial (0-49): "))
+                goal_x = int(input(f"Drone {i+1} - Coordenada X objetivo (0-49): "))
+                goal_y = int(input(f"Drone {i+1} - Coordenada Y objetivo (0-49): "))
+                fuel = int(input(f"Drone {i+1} - Combustible inicial: "))
 
-# Simulación principal
-for step in range(50):  # 50 pasos para un mapa más pequeño
-    for drone in drones:
-        if drone.path is None:
-            # Calcular ruta evitando amenazas y obstáculos
-            drone.path = a_star(grid, drone.start, drone.goal, threats)
-        drone.move()  # Mover el drone a lo largo de la ruta
+                # Validar posiciones
+                if not (0 <= start_x < 50 and 0 <= start_y < 50 and 0 <= goal_x < 50 and 0 <= goal_y < 50):
+                    raise ValueError("Las coordenadas deben estar entre 0 y 49.")
+                if grid[start_y, start_x] != 0 or grid[goal_y, goal_x] != 0:
+                    raise ValueError("Las posiciones inicial y objetivo deben ser celdas transitables (0).")
+                if fuel <= 0:
+                    raise ValueError("El combustible debe ser positivo.")
+
+                drones.append(Drone((start_x, start_y), (goal_x, goal_y), fuel))
+                break
+            except ValueError as e:
+                print(f"Error: {e}. Intente de nuevo.")
+
+    return drones
+
+def run_simulation():
+    # Cargar datos
+    grid = load_map('data/mapas/mapa_inicial.csv')
+    threats = load_threats('data/amenazas/amenazas_iniciales.csv')
+    print(f"Valor en (0, 0): {grid[0, 0]}")
+    print(f"Valor en (49, 49): {grid[49, 49]}")
     
-    # Visualizar cada 5 pasos
-    if step % 5 == 0:
-        plot_map(grid, drones, threats)
-        time.sleep(0.5)
+    # Obtener drones desde la entrada del usuario
+    drones = get_user_drones(grid)
 
-# Visualización final
-plot_map(grid, drones, threats)
-plt.show()
+    # Ejecutar animación
+    animate_simulation(grid, drones, threats, steps=50)
+    
+    # Guardar resultados
+    with open('resultados_simulacion.txt', 'w') as f:
+        for i, drone in enumerate(drones):
+            status = "Alcanzó meta" if drone.start == drone.goal else f"Parado en {drone.start} (sin combustible o sin ruta)"
+            f.write(f"Drone {i+1}: {status}, Combustible restante: {drone.fuel}\n")
+            if drone.path is not None:
+                f.write(f"Ruta final: {drone.path}\n")
+    print("Simulación finalizada. Resultados guardados en resultados_simulacion.txt.")
+
+if __name__ == "__main__":
+    run_simulation()

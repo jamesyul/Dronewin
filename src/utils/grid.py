@@ -2,19 +2,9 @@ import pandas as pd
 import numpy as np
 
 def load_map(file_path):
-    """
-    Carga el mapa desde un archivo CSV.
-    
-    Parámetros:
-    - file_path: Ruta al archivo CSV.
-    
-    Retorna:
-    - Una matriz NumPy representando la cuadrícula del mapa.
-    """
     try:
-        # Leer el CSV sin encabezado
         grid = pd.read_csv(file_path, header=None).values
-        # Verificar que la cuadrícula sea de 50x50
+        print(f"Mapa cargado: {grid.shape}")
         if grid.shape != (50, 50):
             raise ValueError(f"Se esperaba una cuadrícula de 50x50, pero se encontró {grid.shape}")
         return grid
