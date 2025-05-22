@@ -5,6 +5,7 @@ def load_map(file_path):
     try:
         grid = pd.read_csv(file_path, header=None).values
         print(f"Mapa cargado: {grid.shape}")
+        print(f"Valor en (45, 45): {grid[45, 45]}")  # Depuración
         if grid.shape != (50, 50):
             raise ValueError(f"Se esperaba una cuadrícula de 50x50, pero se encontró {grid.shape}")
         return grid

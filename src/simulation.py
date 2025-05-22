@@ -43,14 +43,14 @@ def get_user_drones(grid):
 
 def run_simulation():
     # Cargar datos
-    grid = load_map('data/mapas/mapa_inicial.csv')
+    grid = load_map("../data/mapas/mapa_inicial.csv")
     print(f"Mapa cargado: {grid.shape}")
     print(f"Valor en (0, 0): {grid[0, 0]}")
     print(f"Valor en (49, 49): {grid[49, 49]}")
 
     # Cargar amenazas con depuración
     try:
-        threats = load_threats('data/amenazas/amenazas_iniciales.csv')
+        threats = load_threats("../data/amenazas/amenazas_iniciales.csv")
         print(f"Total de amenazas cargadas: {len(threats)}")
         for threat in threats:
             print(f"Amenaza en ({threat.x}, {threat.y}), tipo: {threat.tipo}, rango: {threat.range}")
