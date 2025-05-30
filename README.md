@@ -11,8 +11,8 @@ Este proyecto simula el movimiento de drones en un mapa de 50x50, evitando obst√
 
 ## Requisitos
 
-`Python 3.8+`
-Dependencias: numpy, pandas, matplotlib, osmnx, geopandas, shapely, pyosmium
+- `Python 3.8+`
+- Dependencias: numpy, pandas, matplotlib, osmnx, geopandas, shapely, pyosmium
 
 ## Instalaci√≥n
 
