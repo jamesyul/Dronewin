@@ -1,0 +1,2 @@
+Drone 1: Alcanzó meta, Combustible restante: 98
+Ruta final: [(26, 0)]
