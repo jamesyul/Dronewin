@@ -63,7 +63,7 @@ def run_simulation():
 
     # Ejecutar animación
     try:
-        animate_simulation(grid, drones, threats, steps=50)
+        animate_simulation(grid, drones, threats, steps=100)
     except Exception as e:
         print(f"Error en la animación: {str(e)}")
         return
@@ -73,8 +73,7 @@ def run_simulation():
         for i, drone in enumerate(drones):
             status = "Alcanzó meta" if drone.start == drone.goal else f"Parado en {drone.start} (sin combustible o sin ruta)"
             f.write(f"Drone {i+1}: {status}, Combustible restante: {drone.fuel}\n")
-            if drone.path is not None:
-                f.write(f"Ruta final: {drone.path}\n")
+            f.write(f"Historial de posiciones: {drone.history}\n")
     print("Simulación finalizada. Resultados guardados en resultados_simulacion.txt.")
 
 if __name__ == "__main__":

@@ -6,6 +6,7 @@ class Drone:
         self.goal = goal    # Tupla (x, y)
         self.fuel = fuel    # Combustible inicial
         self.path = None    # Ruta calculada (lista de tuplas)
+        self.history = [start]  # Historial de posiciones
 
     def move(self, drones):
         """Mueve el dron al siguiente punto de su ruta, evitando colisiones."""
@@ -16,5 +17,6 @@ class Drone:
                 if other_drone != self and other_drone.start == next_pos:
                     return  # No moverse si hay colisión
             self.start = next_pos
+            self.history.append(next_pos)  # Agregar al historial
             self.path = self.path[1:]
             self.fuel -= 1
